@@ -4,25 +4,6 @@ Live Demo: [https://vtayyab6-prompt-optimization-playground.hf.space](https://vt
 
 A Gradio app for comparing prompt-engineering variants on the same query, scoring outputs automatically, and selecting a preferred response.
 
-## Key Features
-
-| Feature | Details |
-| --- | --- |
-| Two-stage flow | Each variant first generates an optimized prompt, then generates a final answer from it. |
-| Side-by-side comparison | Four tabbed variants: Simple, Teacher, Structured, Concise. |
-| Heuristic scoring | Relevance, Length, Readability, Structure, and Overall score. |
-| Human preference | Manual “preferred result” selector for subjective comparison. |
-| Streaming updates | Results appear progressively as variants finish. |
-| Safe key handling | API key is entered in the UI and not stored. |
-
-## How It Works
-
-1. Enter Gemini API key and query.
-2. The app creates four strategy-specific optimization prompts.
-3. Gemini returns one optimized prompt per strategy.
-4. Gemini generates one final answer per optimized prompt.
-5. The app scores responses and surfaces the top result.
-
 ## Use Cases
 
 | Use Case | Why It Helps |
@@ -41,6 +22,25 @@ A Gradio app for comparing prompt-engineering variants on the same query, scorin
 ### After Generation
 
 ![After generation](assets/screenshots/after-generation.png)
+
+## Key Features
+
+| Feature | Details |
+| --- | --- |
+| Two-stage flow | Each variant first generates an optimized prompt, then generates a final answer from it. |
+| Side-by-side comparison | Four tabbed variants: Simple, Teacher, Structured, Concise. |
+| Heuristic scoring | Relevance, Length, Readability, Structure, and Overall score. |
+| Human preference | Manual “preferred result” selector for subjective comparison. |
+| Streaming updates | Results appear progressively as variants finish. |
+| Safe key handling | API key is entered in the UI and not stored. |
+
+## How It Works
+
+1. Enter Gemini API key and query.
+2. The app creates four strategy-specific optimization prompts.
+3. Gemini returns one optimized prompt per strategy.
+4. Gemini generates one final answer per optimized prompt.
+5. The app scores responses and surfaces the top result.
 
 ## Local Setup
 
