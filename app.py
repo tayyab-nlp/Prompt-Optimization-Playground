@@ -565,4 +565,12 @@ def build_demo() -> gr.Blocks:
 
 if __name__ == "__main__":
     share_enabled = os.getenv("GRADIO_SHARE", "false").lower() in {"1", "true", "yes"}
-    build_demo().queue().launch(css=CARD_CSS, theme=gr.themes.Default(), share=share_enabled)
+    server_name = os.getenv("GRADIO_SERVER_NAME", "0.0.0.0")
+    server_port = int(os.getenv("PORT", os.getenv("GRADIO_SERVER_PORT", "7860")))
+    build_demo().queue().launch(
+        css=CARD_CSS,
+        theme=gr.themes.Default(),
+        share=share_enabled,
+        server_name=server_name,
+        server_port=server_port,
+    )
