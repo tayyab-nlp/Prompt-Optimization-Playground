@@ -1,3 +1,14 @@
+---
+title: Prompt Optimization Playground
+emoji: 🧪
+colorFrom: blue
+colorTo: indigo
+sdk: gradio
+python_version: "3.10"
+app_file: app.py
+pinned: false
+---
+
 # Prompt Optimization Playground
 
 Prompt Optimization Playground is a Gradio-based tool that compares multiple prompt engineering strategies and evaluates their effect on Gemini model outputs using heuristic scoring and human preference.
