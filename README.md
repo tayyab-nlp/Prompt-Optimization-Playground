@@ -4,13 +4,6 @@ Live Demo: [https://vtayyab6-prompt-optimization-playground.hf.space](https://vt
 
 A Gradio app for comparing prompt-engineering variants on the same query, scoring outputs automatically, and selecting a preferred response.
 
-## Public Demo Link (for GitHub)
-
-| Link Type | URL |
-| --- | --- |
-| Persistent App | [https://vtayyab6-prompt-optimization-playground.hf.space](https://vtayyab6-prompt-optimization-playground.hf.space) |
-| Space Page | [https://huggingface.co/spaces/vtayyab6/prompt-optimization-playground](https://huggingface.co/spaces/vtayyab6/prompt-optimization-playground) |
-
 ## Key Features
 
 | Feature | Details |
@@ -41,9 +34,22 @@ A Gradio app for comparing prompt-engineering variants on the same query, scorin
 
 ## Screenshots
 
-| Before Generation | After Generation |
-| --- | --- |
-| ![Before generation](assets/screenshots/before-generation.png) | ![After generation](assets/screenshots/after-generation.png) |
+### Before Generation
+
+![Before generation](assets/screenshots/before-generation.png)
+
+### After Generation
+
+![After generation](assets/screenshots/after-generation.png)
+
+## Local Setup
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python app.py
+```
 
 ## Project Structure
 
