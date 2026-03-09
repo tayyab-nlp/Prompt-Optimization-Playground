@@ -1,9 +1,9 @@
-"""Central config constants for Prompt Variant Lab."""
+"""Central config constants for Prompt Optimization Playground."""
 
-APP_TITLE = "Prompt Variant Lab"
+APP_TITLE = "Prompt Optimization Playground"
 APP_DESCRIPTION = (
-    "Compare how four fixed prompt strategies change Gemini outputs for the same task. "
-    "Paste your API key, run generation, then compare answers side-by-side."
+    "A Gradio-based tool that compares multiple prompt engineering strategies and evaluates "
+    "their effect on Gemini model outputs using heuristic scoring and human preference."
 )
 
 MODEL_ID = "gemini-3.1-flash-lite-preview"

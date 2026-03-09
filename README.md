@@ -1,6 +1,6 @@
-# Prompt Variant Lab
+# Prompt Optimization Playground
 
-Prompt Variant Lab is a lightweight Gradio demo app that compares how different prompt strategies affect Gemini responses for the same user task.
+Prompt Optimization Playground is a Gradio-based tool that compares multiple prompt engineering strategies and evaluates their effect on Gemini model outputs using heuristic scoring and human preference.
 
 The app is designed for quick visual comparison:
 - one query
@@ -12,6 +12,7 @@ The app is designed for quick visual comparison:
 ## Features
 
 - Two-column Gradio UI (inputs on left, outputs on right)
+- Sticky input column for easier long-form output review
 - API key entry in the GUI (`password` field)
 - No API key storage, persistence, or logging
 - Four fixed prompt strategies:
@@ -82,6 +83,10 @@ python app.py
 ```
 
 Then open the local Gradio URL shown in your terminal.
+
+## Live Demo
+
+Add your Gradio live link in this section so GitHub visitors can test the app quickly.
 
 ## API Key Handling
 

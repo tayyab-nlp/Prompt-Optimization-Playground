@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import html
-import re
 from typing import Any
 
 import gradio as gr
+import markdown
 
 from src.config import APP_DESCRIPTION, APP_TITLE, EXAMPLE_QUERIES, MODEL_ID
 from src.generator import GeminiRequestError, generate_answer
@@ -27,6 +27,13 @@ body, .gradio-container {
   box-shadow: 0 3px 14px rgba(2, 6, 23, 0.06);
   padding: 16px;
 }
+.pvl-left-sticky {
+  position: sticky;
+  top: 14px;
+  align-self: flex-start;
+  max-height: calc(100vh - 28px);
+  overflow-y: auto;
+}
 .pvl-card {
   border: 1px solid #d7e1ef;
   border-radius: 14px;
@@ -43,9 +50,15 @@ body, .gradio-container {
   border-radius: 10px;
   background: #f8fafc;
   line-height: 1.55;
-  white-space: pre-wrap;
   min-height: 220px;
 }
+.pvl-answer h1, .pvl-answer h2, .pvl-answer h3, .pvl-answer h4 {
+  margin-top: 0.5rem;
+  margin-bottom: 0.45rem;
+}
+.pvl-answer p { margin: 0.45rem 0; }
+.pvl-answer ul, .pvl-answer ol { margin: 0.45rem 0 0.45rem 1.1rem; }
+.pvl-answer strong { font-weight: 700; }
 .pvl-scores {
   margin-top: 12px;
   display: grid;
@@ -99,13 +112,11 @@ def _escape_text(text: str) -> str:
     return html.escape(text)
 
 
-def _clean_answer_text(text: str) -> str:
-    """Light cleanup to avoid raw markdown artifacts in HTML cards."""
-    cleaned = text.replace("\r", "").strip()
-    cleaned = re.sub(r"(?m)^\s*#{1,6}\s*", "", cleaned)
-    cleaned = cleaned.replace("**", "").replace("__", "").replace("`", "")
-    cleaned = re.sub(r"(?m)^\s*[-*]\s+", "• ", cleaned)
-    return cleaned
+def _render_answer_html(answer: str) -> str:
+    """Render markdown output as HTML so headings/bold/lists display correctly."""
+    if not answer.strip():
+        return "Waiting for generation..."
+    return markdown.markdown(answer, extensions=["extra", "sane_lists"])
 
 
 def _render_error_details(error_details: dict[str, Any] | None) -> str:
@@ -148,7 +159,7 @@ def _render_result_card(
     error_details: dict[str, Any] | None = None,
 ) -> str:
     prompt_html = _escape_text(variant.get("prompt", ""))
-    answer_html = _escape_text(_clean_answer_text(answer)) if answer else "Waiting for generation..."
+    answer_html = _render_answer_html(answer)
 
     if scores is None:
         score_block = '<div class="pvl-overall">Scores will appear after generation.</div>'
@@ -289,7 +300,7 @@ def build_demo() -> gr.Blocks:
             gr.Markdown(f"# {APP_TITLE}\n{APP_DESCRIPTION}")
 
             with gr.Row():
-                with gr.Column(scale=1, elem_classes="pvl-panel"):
+                with gr.Column(scale=1, elem_classes=["pvl-panel", "pvl-left-sticky"]):
                     api_key = gr.Textbox(
                         label="Gemini API Key",
                         type="password",
