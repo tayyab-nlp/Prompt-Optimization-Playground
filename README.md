@@ -91,6 +91,8 @@ Then open the local Gradio URL shown in your terminal.
 
 ## Public Demo Link (for GitHub)
 
+Live demo: [https://huggingface.co/spaces/vtayyab6/prompt-optimization-playground](https://huggingface.co/spaces/vtayyab6/prompt-optimization-playground)
+
 Use one of these options:
 
 ### Option 1: Temporary public link (quick test)
@@ -111,12 +113,12 @@ Deploy to Hugging Face Spaces (Gradio SDK) for a stable URL you can place in you
 2. Push this repository content to the Space.
 3. Hugging Face builds and serves your app automatically.
 4. Use your Space URL in README, for example:
-   `https://huggingface.co/spaces/<username>/prompt-optimization-playground`
+   `https://huggingface.co/spaces/vtayyab6/prompt-optimization-playground`
 
 Suggested README badge/link format:
 
 ```md
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-Open-blue)](https://huggingface.co/spaces/<username>/prompt-optimization-playground)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Open-blue)](https://huggingface.co/spaces/vtayyab6/prompt-optimization-playground)
 ```
 
 ## API Key Handling
