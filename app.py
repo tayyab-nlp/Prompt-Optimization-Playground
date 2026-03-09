@@ -1,8 +1,10 @@
-"""Prompt Variant Lab - Gradio app entry point."""
+"""Prompt Optimization Playground - Gradio app entry point."""
 
 from __future__ import annotations
 
 import html
+import os
+import re
 from typing import Any
 
 import gradio as gr
@@ -112,11 +114,21 @@ def _escape_text(text: str) -> str:
     return html.escape(text)
 
 
+def _normalize_optimized_prompt(text: str) -> str:
+    """Trim wrappers so optimized prompt is directly reusable."""
+    cleaned = text.strip()
+    if cleaned.startswith("```") and cleaned.endswith("```"):
+        cleaned = re.sub(r"^```[a-zA-Z]*\n?", "", cleaned)
+        cleaned = re.sub(r"\n?```$", "", cleaned)
+    return cleaned.strip()
+
+
 def _render_answer_html(answer: str) -> str:
     """Render markdown output as HTML so headings/bold/lists display correctly."""
     if not answer.strip():
         return "Waiting for generation..."
-    return markdown.markdown(answer, extensions=["extra", "sane_lists"])
+    safe_markdown = html.escape(answer.strip())
+    return markdown.markdown(safe_markdown, extensions=["extra", "sane_lists"])
 
 
 def _render_error_details(error_details: dict[str, Any] | None) -> str:
@@ -152,13 +164,15 @@ def _empty_scores() -> dict[str, float]:
 
 def _render_result_card(
     variant: dict[str, str],
+    optimized_prompt: str,
     answer: str,
     status_text: str,
     scores: dict[str, float] | None = None,
     error_message: str | None = None,
     error_details: dict[str, Any] | None = None,
 ) -> str:
-    prompt_html = _escape_text(variant.get("prompt", ""))
+    prompt_text = optimized_prompt.strip() if optimized_prompt.strip() else "Optimized prompt not generated yet."
+    prompt_html = _escape_text(prompt_text)
     answer_html = _render_answer_html(answer)
 
     if scores is None:
@@ -183,7 +197,7 @@ def _render_result_card(
       <h3>{_escape_text(variant["name"])}</h3>
       <div class="pvl-tagline">{_escape_text(variant["tagline"])}</div>
       <details>
-        <summary>Show prompt</summary>
+        <summary>Show optimized prompt</summary>
         <div class="pvl-prompt">{prompt_html}</div>
       </details>
       <div class="pvl-status">{_escape_text(status_text)}</div>
@@ -195,9 +209,26 @@ def _render_result_card(
     """
 
 
-def _build_outputs(cards: list[str], progress_text: str, top_text: str) -> tuple[Any, ...]:
+def _build_outputs(
+    cards: list[str],
+    progress_text: str,
+    top_text: str,
+    favorite_state: Any,
+    favorite_text: str,
+) -> tuple[Any, ...]:
     progress_html = f'<div class="pvl-progress">{_escape_text(progress_text)}</div>'
-    return (*cards, progress_html, top_text)
+    return (*cards, progress_html, top_text, favorite_state, favorite_text)
+
+
+def _compute_top_text(scored_results: list[dict[str, Any]]) -> str:
+    top = select_top_result(scored_results)
+    if top:
+        return (
+            "### Top automatic result\n"
+            f"**{top['name']}** ({top['scores']['overall']}/10)  \n"
+            f"{top['tagline']}"
+        )
+    return "### Top automatic result\nNo successful responses yet."
 
 
 def _input_error_outputs(message: str) -> tuple[Any, ...]:
@@ -205,7 +236,8 @@ def _input_error_outputs(message: str) -> tuple[Any, ...]:
     for spec in VARIANT_SPECS:
         cards.append(
             _render_result_card(
-                variant={**spec, "prompt": ""},
+                variant=spec,
+                optimized_prompt="",
                 answer="",
                 status_text=message,
                 scores=None,
@@ -213,11 +245,13 @@ def _input_error_outputs(message: str) -> tuple[Any, ...]:
             )
         )
     top = f"### Top automatic result\n{message}"
-    return _build_outputs(cards, "Validation failed.", top)
+    favorite_state = gr.update(choices=[], value=None, interactive=False)
+    favorite_text = "Your selection: unavailable until results are generated."
+    return _build_outputs(cards, "Validation failed.", top, favorite_state, favorite_text)
 
 
 def run_variant_lab(api_key: str, query: str, model_id: str):
-    """Generate one answer per prompt variant and stream UI updates."""
+    """Run 2-stage flow per variant: optimize prompt, then generate final answer."""
     api_key = (api_key or "").strip()
     query = (query or "").strip()
 
@@ -230,38 +264,156 @@ def run_variant_lab(api_key: str, query: str, model_id: str):
 
     variants = build_prompt_variants(query)
     total = len(variants)
-    cards = [_render_result_card(variant, "", "Queued", scores=None) for variant in variants]
+    cards = [_render_result_card(variant, "", "", "Queued", scores=None) for variant in variants]
     top_text = "### Top automatic result\nRunning..."
+    favorite_state = gr.update(choices=[], value=None, interactive=False)
+    favorite_text = "Your selection: waiting for results."
 
-    yield _build_outputs(cards, f"Initialized {total} variants. Starting generation...", top_text)
+    yield _build_outputs(
+        cards,
+        f"Initialized {total} variants. Starting optimization...",
+        top_text,
+        favorite_state,
+        favorite_text,
+    )
 
     scored_results: list[dict[str, Any]] = []
 
     for idx, variant in enumerate(variants, start=1):
-        cards[idx - 1] = _render_result_card(variant, "", f"Generating ({idx}/{total})...", scores=None)
-        yield _build_outputs(cards, f"Calling Gemini for {variant['name']} ({idx}/{total})...", top_text)
+        cards[idx - 1] = _render_result_card(variant, "", "", f"Optimizing prompt ({idx}/{total})...", scores=None)
+        yield _build_outputs(
+            cards,
+            f"Optimizing prompt for {variant['name']} ({idx}/{total})...",
+            top_text,
+            favorite_state,
+            favorite_text,
+        )
 
         error_message: str | None = None
         error_details: dict[str, Any] | None = None
+        optimized_prompt = ""
+
         try:
-            answer = generate_answer(api_key=api_key, prompt=variant["prompt"], model_id=model_id)
-            scores = score_answer(query=query, answer=answer)
-            status = f"Completed ({idx}/{total})"
+            optimized_prompt_raw = generate_answer(
+                api_key=api_key,
+                prompt=variant["optimizer_prompt"],
+                model_id=model_id,
+            )
+            optimized_prompt = _normalize_optimized_prompt(optimized_prompt_raw)
         except GeminiRequestError as exc:
-            answer = "This variant failed to generate a response."
+            answer = "This variant failed during prompt optimization."
             error_message = str(exc)
             error_details = exc.details
             scores = _empty_scores()
-            status = f"Failed ({idx}/{total})"
+            status = f"Failed during optimization ({idx}/{total})"
+            cards[idx - 1] = _render_result_card(
+                variant=variant,
+                optimized_prompt=optimized_prompt,
+                answer=answer,
+                status_text=status,
+                scores=scores,
+                error_message=error_message,
+                error_details=error_details,
+            )
+            scored_results.append(
+                {
+                    "id": variant["id"],
+                    "name": variant["name"],
+                    "tagline": variant["tagline"],
+                    "scores": scores,
+                    "error": error_message,
+                }
+            )
+            top_text = _compute_top_text(scored_results)
+            top = select_top_result(scored_results)
+            favorite_state = gr.update(
+                choices=[item["name"] for item in scored_results],
+                value=top["name"] if top else None,
+                interactive=bool(scored_results),
+            )
+            favorite_text = (
+                f"Your selection: **{top['name']}**"
+                if top
+                else "Your selection: choose your preferred variant."
+            )
+            yield _build_outputs(cards, f"Processed {idx}/{total} variants.", top_text, favorite_state, favorite_text)
+            continue
         except Exception as exc:  # pylint: disable=broad-except
-            answer = "This variant failed to generate a response."
+            answer = "This variant failed during prompt optimization."
             error_message = f"Unexpected local error: {exc}"
             error_details = {"error_type": "unexpected_error", "raw_error": str(exc)}
             scores = _empty_scores()
-            status = f"Failed ({idx}/{total})"
+            status = f"Failed during optimization ({idx}/{total})"
+            cards[idx - 1] = _render_result_card(
+                variant=variant,
+                optimized_prompt=optimized_prompt,
+                answer=answer,
+                status_text=status,
+                scores=scores,
+                error_message=error_message,
+                error_details=error_details,
+            )
+            scored_results.append(
+                {
+                    "id": variant["id"],
+                    "name": variant["name"],
+                    "tagline": variant["tagline"],
+                    "scores": scores,
+                    "error": error_message,
+                }
+            )
+            top_text = _compute_top_text(scored_results)
+            top = select_top_result(scored_results)
+            favorite_state = gr.update(
+                choices=[item["name"] for item in scored_results],
+                value=top["name"] if top else None,
+                interactive=bool(scored_results),
+            )
+            favorite_text = (
+                f"Your selection: **{top['name']}**"
+                if top
+                else "Your selection: choose your preferred variant."
+            )
+            yield _build_outputs(cards, f"Processed {idx}/{total} variants.", top_text, favorite_state, favorite_text)
+            continue
 
         cards[idx - 1] = _render_result_card(
             variant=variant,
+            optimized_prompt=optimized_prompt,
+            answer="",
+            status_text=f"Prompt optimized. Generating answer ({idx}/{total})...",
+            scores=None,
+        )
+        yield _build_outputs(
+            cards,
+            f"Generating final answer for {variant['name']} ({idx}/{total})...",
+            top_text,
+            favorite_state,
+            favorite_text,
+        )
+
+        error_message = None
+        error_details = None
+        try:
+            answer = generate_answer(api_key=api_key, prompt=optimized_prompt, model_id=model_id)
+            scores = score_answer(query=query, answer=answer)
+            status = f"Completed ({idx}/{total})"
+        except GeminiRequestError as exc:
+            answer = "This variant failed during final answer generation."
+            error_message = str(exc)
+            error_details = exc.details
+            scores = _empty_scores()
+            status = f"Failed during generation ({idx}/{total})"
+        except Exception as exc:  # pylint: disable=broad-except
+            answer = "This variant failed during final answer generation."
+            error_message = f"Unexpected local error: {exc}"
+            error_details = {"error_type": "unexpected_error", "raw_error": str(exc)}
+            scores = _empty_scores()
+            status = f"Failed during generation ({idx}/{total})"
+
+        cards[idx - 1] = _render_result_card(
+            variant=variant,
+            optimized_prompt=optimized_prompt,
             answer=answer,
             status_text=status,
             scores=scores,
@@ -279,19 +431,28 @@ def run_variant_lab(api_key: str, query: str, model_id: str):
             }
         )
 
+        top_text = _compute_top_text(scored_results)
         top = select_top_result(scored_results)
-        if top:
-            top_text = (
-                "### Top automatic result\n"
-                f"**{top['name']}** ({top['scores']['overall']}/10)  \n"
-                f"{top['tagline']}"
-            )
-        else:
-            top_text = "### Top automatic result\nNo successful responses yet."
+        favorite_state = gr.update(
+            choices=[item["name"] for item in scored_results],
+            value=top["name"] if top else None,
+            interactive=bool(scored_results),
+        )
+        favorite_text = (
+            f"Your selection: **{top['name']}**"
+            if top
+            else "Your selection: choose your preferred variant."
+        )
 
-        yield _build_outputs(cards, f"Processed {idx}/{total} variants.", top_text)
+        yield _build_outputs(cards, f"Processed {idx}/{total} variants.", top_text, favorite_state, favorite_text)
 
-    yield _build_outputs(cards, f"Done. Processed all {total} variants.", top_text)
+    yield _build_outputs(cards, f"Done. Processed all {total} variants.", top_text, favorite_state, favorite_text)
+
+
+def update_favorite(selection: str | None) -> str:
+    if not selection:
+        return "Your selection: choose your preferred variant."
+    return f"Your selection: **{selection}**"
 
 
 def build_demo() -> gr.Blocks:
@@ -330,24 +491,32 @@ def build_demo() -> gr.Blocks:
 
                     with gr.Tabs():
                         with gr.Tab("Simple Explanation"):
-                            card_1 = gr.HTML(_render_result_card({**VARIANT_SPECS[0], "prompt": ""}, "", "Waiting", None))
+                            card_1 = gr.HTML(_render_result_card(VARIANT_SPECS[0], "", "", "Waiting", None))
                         with gr.Tab("Teacher Mode"):
-                            card_2 = gr.HTML(_render_result_card({**VARIANT_SPECS[1], "prompt": ""}, "", "Waiting", None))
+                            card_2 = gr.HTML(_render_result_card(VARIANT_SPECS[1], "", "", "Waiting", None))
                         with gr.Tab("Structured Answer"):
-                            card_3 = gr.HTML(_render_result_card({**VARIANT_SPECS[2], "prompt": ""}, "", "Waiting", None))
+                            card_3 = gr.HTML(_render_result_card(VARIANT_SPECS[2], "", "", "Waiting", None))
                         with gr.Tab("Concise Version"):
-                            card_4 = gr.HTML(_render_result_card({**VARIANT_SPECS[3], "prompt": ""}, "", "Waiting", None))
+                            card_4 = gr.HTML(_render_result_card(VARIANT_SPECS[3], "", "", "Waiting", None))
 
                     top_result = gr.Markdown("### Top automatic result\nGenerate outputs to see ranking.")
+                    favorite_pick = gr.Radio(
+                        label="Your preferred result",
+                        choices=[],
+                        interactive=False,
+                    )
+                    favorite_text = gr.Markdown("Your selection: not selected.")
 
             generate.click(
                 fn=run_variant_lab,
                 inputs=[api_key, query, model],
-                outputs=[card_1, card_2, card_3, card_4, progress_text, top_result],
+                outputs=[card_1, card_2, card_3, card_4, progress_text, top_result, favorite_pick, favorite_text],
             )
+            favorite_pick.change(fn=update_favorite, inputs=[favorite_pick], outputs=[favorite_text])
 
     return demo
 
 
 if __name__ == "__main__":
-    build_demo().queue().launch(css=CARD_CSS, theme=gr.themes.Default())
+    share_enabled = os.getenv("GRADIO_SHARE", "false").lower() in {"1", "true", "yes"}
+    build_demo().queue().launch(css=CARD_CSS, theme=gr.themes.Default(), share=share_enabled)

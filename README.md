@@ -20,6 +20,9 @@ The app is designed for quick visual comparison:
   - Teacher Mode
   - Structured Answer
   - Concise Version
+- Two-stage generation per variant:
+  - Stage 1: generate an optimized prompt for the strategy
+  - Stage 2: generate the final answer from that optimized prompt
 - Automatic scoring (0-10 scale):
   - Relevance
   - Length
@@ -29,6 +32,7 @@ The app is designed for quick visual comparison:
 - Tabbed output view (one variant visible at a time)
 - Progressive updates as each variant finishes
 - “Top automatic result” summary
+- Manual “preferred result” selection
 - Graceful handling of missing input, API errors, and malformed responses
 - Expandable troubleshooting details for failed variants (timeout/network/HTTP clues)
 
@@ -52,14 +56,15 @@ prompt-variant-lab/
 1. User enters a Gemini API key in the app.
 2. User enters a query/task.
 3. The app builds 4 fixed prompt variants from the same query.
-4. Each prompt variant is sent to Gemini (`streamGenerateContent`) using the same model and generation settings.
-5. Each answer is scored with lightweight local heuristics.
-6. Results are shown in tabs with:
+4. For each variant, Gemini first creates an optimized prompt using that strategy.
+5. The optimized prompt is then sent to Gemini to generate the final answer.
+6. Each final answer is scored with lightweight local heuristics.
+7. Results are shown in tabs with:
    - variant name + tagline
+   - optimized prompt (expandable)
    - generated answer
    - metric scores + overall score
-   - hidden expandable prompt text
-7. The app highlights the top-scoring result.
+8. The app highlights the top-scoring result and supports manual preference selection.
 
 ## Setup
 
@@ -84,9 +89,35 @@ python app.py
 
 Then open the local Gradio URL shown in your terminal.
 
-## Live Demo
+## Public Demo Link (for GitHub)
 
-Add your Gradio live link in this section so GitHub visitors can test the app quickly.
+Use one of these options:
+
+### Option 1: Temporary public link (quick test)
+
+Run locally with Gradio sharing enabled and copy the generated public URL:
+
+```bash
+GRADIO_SHARE=true python app.py
+```
+
+This shared link is temporary (Gradio docs state it expires after one week).
+
+### Option 2: Persistent public link (recommended)
+
+Deploy to Hugging Face Spaces (Gradio SDK) for a stable URL you can place in your GitHub README:
+
+1. Create a new Space on Hugging Face and select **Gradio** as the SDK.
+2. Push this repository content to the Space.
+3. Hugging Face builds and serves your app automatically.
+4. Use your Space URL in README, for example:
+   `https://huggingface.co/spaces/<username>/prompt-optimization-playground`
+
+Suggested README badge/link format:
+
+```md
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Open-blue)](https://huggingface.co/spaces/<username>/prompt-optimization-playground)
+```
 
 ## API Key Handling
 
