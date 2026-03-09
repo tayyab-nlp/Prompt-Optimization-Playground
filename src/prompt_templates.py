@@ -62,7 +62,9 @@ def build_prompt_variants(query: str) -> list[dict[str, Any]]:
             "- Return only the optimized prompt text.\n"
             "- Do not include analysis, labels, or explanations.\n"
             "- Keep the optimized prompt concise but complete.\n"
-            "- Encourage readable markdown output when useful (headings, bullets, bold)."
+            "- Instruct the final response to use clean markdown (headings, bullets, bold).\n"
+            "- Instruct bullets to start on new lines using '-' only.\n"
+            "- Instruct no horizontal rules (---) and no decorative bullet symbols."
         )
         variants.append(
             {

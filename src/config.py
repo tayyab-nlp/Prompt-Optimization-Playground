@@ -14,7 +14,6 @@ EXAMPLE_QUERIES = [
     "Explain transformers in simple words.",
     "Write a professional email asking for internship feedback.",
     "Summarize reinforcement learning for a beginner.",
-    "Create a 5-step plan to improve time management for students.",
 ]
 
 # Weighted average for overall score.

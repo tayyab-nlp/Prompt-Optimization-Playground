@@ -22,6 +22,7 @@ body, .gradio-container {
   color: #0f172a !important;
 }
 .pvl-shell {max-width: 1240px; margin: 0 auto;}
+#main-layout { align-items: flex-start; }
 .pvl-panel {
   border: 1px solid #d7e1ef;
   border-radius: 14px;
@@ -29,12 +30,10 @@ body, .gradio-container {
   box-shadow: 0 3px 14px rgba(2, 6, 23, 0.06);
   padding: 16px;
 }
-.pvl-left-sticky {
+#left-panel {
   position: sticky;
   top: 14px;
   align-self: flex-start;
-  max-height: calc(100vh - 28px);
-  overflow-y: auto;
 }
 .pvl-card {
   border: 1px solid #d7e1ef;
@@ -44,7 +43,20 @@ body, .gradio-container {
 }
 .pvl-card h3 {margin: 0; font-size: 1.12rem;}
 .pvl-tagline {margin-top: 4px; color: #475569; font-size: 0.92rem;}
-.pvl-status {margin-top: 10px; font-size: 0.86rem; color: #0369a1; font-weight: 600;}
+.pvl-head {display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;}
+.pvl-status-chip {
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 5px 9px;
+  border-radius: 999px;
+  border: 1px solid #d7e1ef;
+  white-space: nowrap;
+  color: #334155;
+  background: #f8fafc;
+}
+.pvl-status-chip.is-running {color: #1d4ed8; background: #eff6ff; border-color: #bfdbfe;}
+.pvl-status-chip.is-done {color: #0f766e; background: #ecfeff; border-color: #99f6e4;}
+.pvl-status-chip.is-failed {color: #b91c1c; background: #fef2f2; border-color: #fecaca;}
 .pvl-answer {
   margin-top: 10px;
   padding: 10px;
@@ -61,6 +73,8 @@ body, .gradio-container {
 .pvl-answer p { margin: 0.45rem 0; }
 .pvl-answer ul, .pvl-answer ol { margin: 0.45rem 0 0.45rem 1.1rem; }
 .pvl-answer strong { font-weight: 700; }
+.pvl-answer li { margin-bottom: 0.3rem; }
+.pvl-answer hr { display: none; }
 .pvl-scores {
   margin-top: 12px;
   display: grid;
@@ -107,6 +121,12 @@ summary {cursor: pointer; font-weight: 600; color: #1f2937;}
   color: #0f172a;
   font-weight: 600;
 }
+#left-panel .examples .example,
+#left-panel [data-testid="examples"] button,
+#left-panel .examples button {
+  justify-content: flex-start !important;
+  text-align: left !important;
+}
 """
 
 
@@ -123,12 +143,36 @@ def _normalize_optimized_prompt(text: str) -> str:
     return cleaned.strip()
 
 
+def _clean_answer_markdown(answer: str) -> str:
+    """Normalize common malformed markdown from model outputs."""
+    text = answer.replace("\r\n", "\n").replace("\r", "\n").strip()
+    text = re.sub(r"(?m)^\s*([-*_])\1{2,}\s*$", "", text)  # remove horizontal rules
+    text = re.sub(r"(?m)^\s*[•◦]\s+", "- ", text)
+    text = re.sub(r"(?m)^\s*\*\s+\*\s+", "- ", text)
+    text = re.sub(r"(?m)^\s*\*\s+(?=[A-Za-z][^:\n]{1,40}:)", "- ", text)
+    text = re.sub(r"\s+\*\s+\*\s+(?=[A-Z][^:\n]{1,40}:)", "\n- ", text)
+    text = re.sub(r"\s+\*\s+(?=[A-Z][^:\n]{1,40}:)", "\n- ", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text
+
+
 def _render_answer_html(answer: str) -> str:
     """Render markdown output as HTML so headings/bold/lists display correctly."""
     if not answer.strip():
         return "Waiting for generation..."
-    safe_markdown = html.escape(answer.strip())
+    safe_markdown = html.escape(_clean_answer_markdown(answer))
     return markdown.markdown(safe_markdown, extensions=["extra", "sane_lists"])
+
+
+def _status_class(status_text: str) -> str:
+    low = status_text.lower()
+    if "failed" in low:
+        return "is-failed"
+    if "completed" in low or "done" in low:
+        return "is-done"
+    if "optimizing" in low or "generating" in low or "running" in low:
+        return "is-running"
+    return ""
 
 
 def _render_error_details(error_details: dict[str, Any] | None) -> str:
@@ -194,13 +238,15 @@ def _render_result_card(
 
     return f"""
     <div class="pvl-card">
-      <h3>{_escape_text(variant["name"])}</h3>
+      <div class="pvl-head">
+        <h3>{_escape_text(variant["name"])}</h3>
+        <span class="pvl-status-chip {_status_class(status_text)}">{_escape_text(status_text)}</span>
+      </div>
       <div class="pvl-tagline">{_escape_text(variant["tagline"])}</div>
       <details>
         <summary>Show optimized prompt</summary>
         <div class="pvl-prompt">{prompt_html}</div>
       </details>
-      <div class="pvl-status">{_escape_text(status_text)}</div>
       <div class="pvl-answer">{answer_html}</div>
       {score_block}
       {error_html}
@@ -460,12 +506,18 @@ def build_demo() -> gr.Blocks:
         with gr.Column(elem_classes="pvl-shell"):
             gr.Markdown(f"# {APP_TITLE}\n{APP_DESCRIPTION}")
 
-            with gr.Row():
-                with gr.Column(scale=1, elem_classes=["pvl-panel", "pvl-left-sticky"]):
+            with gr.Row(elem_id="main-layout"):
+                with gr.Column(scale=1, elem_classes=["pvl-panel"], elem_id="left-panel"):
                     api_key = gr.Textbox(
                         label="Gemini API Key",
                         type="password",
                         placeholder="Paste key here (not stored)",
+                    )
+                    model = gr.Dropdown(
+                        choices=[MODEL_ID],
+                        value=MODEL_ID,
+                        interactive=False,
+                        label="Model",
                     )
                     query = gr.Textbox(
                         label="Query or Task",
@@ -476,12 +528,6 @@ def build_demo() -> gr.Blocks:
                         examples=[[sample] for sample in EXAMPLE_QUERIES],
                         inputs=[query],
                         label="Example queries",
-                    )
-                    model = gr.Dropdown(
-                        choices=[MODEL_ID],
-                        value=MODEL_ID,
-                        interactive=False,
-                        label="Model",
                     )
                     generate = gr.Button("Generate Variants", variant="primary")
 
